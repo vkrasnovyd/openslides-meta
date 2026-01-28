@@ -1565,40 +1565,55 @@ CREATE TABLE gm_tag_tagged_ids_t (
 CREATE VIEW "action_worker" AS SELECT * FROM action_worker_t a;
 
 
-CREATE VIEW "agenda_item" AS SELECT *,
-(select array_agg(ai.id ORDER BY ai.id) from agenda_item_t ai where ai.parent_id = a.id) as child_ids,
-(select array_agg(g.tag_id ORDER BY g.tag_id) from gm_tag_tagged_ids_t g where g.tagged_id_agenda_item_id = a.id) as tag_ids,
-(select array_agg(p.id ORDER BY p.id) from projection_t p where p.content_object_id_agenda_item_id = a.id) as projection_ids
-FROM agenda_item_t a;
+CREATE VIEW "agenda_item" AS SELECT a.*,
+array_remove(array_agg(ai0.id ORDER BY ai0.id), NULL) as child_ids,
+array_remove(array_agg(g1.tag_id ORDER BY g1.tag_id), NULL) as tag_ids,
+array_remove(array_agg(p2.id ORDER BY p2.id), NULL) as projection_ids
+FROM agenda_item_t a
+LEFT JOIN agenda_item_t ai0 on ai0.parent_id = a.id
+LEFT JOIN gm_tag_tagged_ids_t g1 on g1.tagged_id_agenda_item_id = a.id
+LEFT JOIN projection_t p2 on p2.content_object_id_agenda_item_id = a.id
+GROUP BY a.id;
 
 
-CREATE VIEW "assignment" AS SELECT *,
-(select array_agg(ac.id ORDER BY ac.id) from assignment_candidate_t ac where ac.assignment_id = a.id) as candidate_ids,
-(select array_agg(p.id ORDER BY p.id) from poll_t p where p.content_object_id_assignment_id = a.id) as poll_ids,
+CREATE VIEW "assignment" AS SELECT a.*,
+array_remove(array_agg(ac3.id ORDER BY ac3.id), NULL) as candidate_ids,
+array_remove(array_agg(p4.id ORDER BY p4.id), NULL) as poll_ids,
 (select ai.id from agenda_item_t ai where ai.content_object_id_assignment_id = a.id) as agenda_item_id,
 (select l.id from list_of_speakers_t l where l.content_object_id_assignment_id = a.id) as list_of_speakers_id,
-(select array_agg(g.tag_id ORDER BY g.tag_id) from gm_tag_tagged_ids_t g where g.tagged_id_assignment_id = a.id) as tag_ids,
-(select array_agg(g.meeting_mediafile_id ORDER BY g.meeting_mediafile_id) from gm_meeting_mediafile_attachment_ids_t g where g.attachment_id_assignment_id = a.id) as attachment_meeting_mediafile_ids,
-(select array_agg(p.id ORDER BY p.id) from projection_t p where p.content_object_id_assignment_id = a.id) as projection_ids,
-(select array_agg(h.id ORDER BY h.id) from history_entry_t h where h.model_id_assignment_id = a.id) as history_entry_ids
-FROM assignment_t a;
+array_remove(array_agg(g5.tag_id ORDER BY g5.tag_id), NULL) as tag_ids,
+array_remove(array_agg(g6.meeting_mediafile_id ORDER BY g6.meeting_mediafile_id), NULL) as attachment_meeting_mediafile_ids,
+array_remove(array_agg(p7.id ORDER BY p7.id), NULL) as projection_ids,
+array_remove(array_agg(h8.id ORDER BY h8.id), NULL) as history_entry_ids
+FROM assignment_t a
+LEFT JOIN assignment_candidate_t ac3 on ac3.assignment_id = a.id
+LEFT JOIN poll_t p4 on p4.content_object_id_assignment_id = a.id
+LEFT JOIN gm_tag_tagged_ids_t g5 on g5.tagged_id_assignment_id = a.id
+LEFT JOIN gm_meeting_mediafile_attachment_ids_t g6 on g6.attachment_id_assignment_id = a.id
+LEFT JOIN projection_t p7 on p7.content_object_id_assignment_id = a.id
+LEFT JOIN history_entry_t h8 on h8.model_id_assignment_id = a.id
+GROUP BY a.id;
 
 
 CREATE VIEW "assignment_candidate" AS SELECT * FROM assignment_candidate_t a;
 
 
-CREATE VIEW "chat_group" AS SELECT *,
-(select array_agg(cm.id ORDER BY cm.id) from chat_message_t cm where cm.chat_group_id = c.id) as chat_message_ids,
-(select array_agg(n.group_id ORDER BY n.group_id) from nm_chat_group_read_group_ids_group_t n where n.chat_group_id = c.id) as read_group_ids,
-(select array_agg(n.group_id ORDER BY n.group_id) from nm_chat_group_write_group_ids_group_t n where n.chat_group_id = c.id) as write_group_ids
-FROM chat_group_t c;
+CREATE VIEW "chat_group" AS SELECT c.*,
+array_remove(array_agg(cm9.id ORDER BY cm9.id), NULL) as chat_message_ids,
+array_remove(array_agg(n10.group_id ORDER BY n10.group_id), NULL) as read_group_ids,
+array_remove(array_agg(n11.group_id ORDER BY n11.group_id), NULL) as write_group_ids
+FROM chat_group_t c
+LEFT JOIN chat_message_t cm9 on cm9.chat_group_id = c.id
+LEFT JOIN nm_chat_group_read_group_ids_group_t n10 on n10.chat_group_id = c.id
+LEFT JOIN nm_chat_group_write_group_ids_group_t n11 on n11.chat_group_id = c.id
+GROUP BY c.id;
 
 
 CREATE VIEW "chat_message" AS SELECT * FROM chat_message_t c;
 
 
-CREATE VIEW "committee" AS SELECT *,
-(select array_agg(m.id ORDER BY m.id) from meeting_t m where m.committee_id = c.id) as meeting_ids,
+CREATE VIEW "committee" AS SELECT c.*,
+array_remove(array_agg(m12.id ORDER BY m12.id), NULL) as meeting_ids,
 (
   SELECT array_agg(DISTINCT user_id ORDER BY user_id)
   FROM (
@@ -1623,110 +1638,140 @@ CREATE VIEW "committee" AS SELECT *,
   ) _
 ) AS user_ids
 ,
-(select array_agg(n.user_id ORDER BY n.user_id) from nm_committee_manager_ids_user_t n where n.committee_id = c.id) as manager_ids,
-(select array_agg(ct.id ORDER BY ct.id) from committee_t ct where ct.parent_id = c.id) as child_ids,
-(select array_agg(n.all_parent_id ORDER BY n.all_parent_id) from nm_committee_all_child_ids_committee_t n where n.all_child_id = c.id) as all_parent_ids,
-(select array_agg(n.all_child_id ORDER BY n.all_child_id) from nm_committee_all_child_ids_committee_t n where n.all_parent_id = c.id) as all_child_ids,
-(select array_agg(u.id ORDER BY u.id) from user_t u where u.home_committee_id = c.id) as native_user_ids,
-(select array_agg(n.forward_to_committee_id ORDER BY n.forward_to_committee_id) from nm_committee_forward_to_committee_ids_committee_t n where n.receive_forwardings_from_committee_id = c.id) as forward_to_committee_ids,
-(select array_agg(n.receive_forwardings_from_committee_id ORDER BY n.receive_forwardings_from_committee_id) from nm_committee_forward_to_committee_ids_committee_t n where n.forward_to_committee_id = c.id) as receive_forwardings_from_committee_ids,
-(select array_agg(g.organization_tag_id ORDER BY g.organization_tag_id) from gm_organization_tag_tagged_ids_t g where g.tagged_id_committee_id = c.id) as organization_tag_ids
-FROM committee_t c;
+array_remove(array_agg(n13.user_id ORDER BY n13.user_id), NULL) as manager_ids,
+array_remove(array_agg(ct14.id ORDER BY ct14.id), NULL) as child_ids,
+array_remove(array_agg(n15.all_parent_id ORDER BY n15.all_parent_id), NULL) as all_parent_ids,
+array_remove(array_agg(n16.all_child_id ORDER BY n16.all_child_id), NULL) as all_child_ids,
+array_remove(array_agg(u17.id ORDER BY u17.id), NULL) as native_user_ids,
+array_remove(array_agg(n18.forward_to_committee_id ORDER BY n18.forward_to_committee_id), NULL) as forward_to_committee_ids,
+array_remove(array_agg(n19.receive_forwardings_from_committee_id ORDER BY n19.receive_forwardings_from_committee_id), NULL) as receive_forwardings_from_committee_ids,
+array_remove(array_agg(g20.organization_tag_id ORDER BY g20.organization_tag_id), NULL) as organization_tag_ids
+FROM committee_t c
+LEFT JOIN meeting_t m12 on m12.committee_id = c.id
+LEFT JOIN nm_committee_manager_ids_user_t n13 on n13.committee_id = c.id
+LEFT JOIN committee_t ct14 on ct14.parent_id = c.id
+LEFT JOIN nm_committee_all_child_ids_committee_t n15 on n15.all_child_id = c.id
+LEFT JOIN nm_committee_all_child_ids_committee_t n16 on n16.all_parent_id = c.id
+LEFT JOIN user_t u17 on u17.home_committee_id = c.id
+LEFT JOIN nm_committee_forward_to_committee_ids_committee_t n18 on n18.receive_forwardings_from_committee_id = c.id
+LEFT JOIN nm_committee_forward_to_committee_ids_committee_t n19 on n19.forward_to_committee_id = c.id
+LEFT JOIN gm_organization_tag_tagged_ids_t g20 on g20.tagged_id_committee_id = c.id
+GROUP BY c.id;
 
 comment on column "committee".user_ids is 'Calculated field: All users which are in a group of a meeting, belonging to the committee or beeing manager of the committee';
 
-CREATE VIEW "gender" AS SELECT *,
-(select array_agg(u.id ORDER BY u.id) from user_t u where u.gender_id = g.id) as user_ids
-FROM gender_t g;
+CREATE VIEW "gender" AS SELECT g.*,
+array_remove(array_agg(u21.id ORDER BY u21.id), NULL) as user_ids
+FROM gender_t g
+LEFT JOIN user_t u21 on u21.gender_id = g.id
+GROUP BY g.id;
 
 
-CREATE VIEW "group" AS SELECT *,
-(select array_agg(n.meeting_user_id ORDER BY n.meeting_user_id) from nm_group_meeting_user_ids_meeting_user_t n where n.group_id = g.id) as meeting_user_ids,
+CREATE VIEW "group" AS SELECT g.*,
+array_remove(array_agg(n22.meeting_user_id ORDER BY n22.meeting_user_id), NULL) as meeting_user_ids,
 (select m.id from meeting_t m where m.default_group_id = g.id) as default_group_for_meeting_id,
 (select m.id from meeting_t m where m.admin_group_id = g.id) as admin_group_for_meeting_id,
 (select m.id from meeting_t m where m.anonymous_group_id = g.id) as anonymous_group_for_meeting_id,
-(select array_agg(n.meeting_mediafile_id ORDER BY n.meeting_mediafile_id) from nm_group_mmagi_meeting_mediafile_t n where n.group_id = g.id) as meeting_mediafile_access_group_ids,
-(select array_agg(n.meeting_mediafile_id ORDER BY n.meeting_mediafile_id) from nm_group_mmiagi_meeting_mediafile_t n where n.group_id = g.id) as meeting_mediafile_inherited_access_group_ids,
-(select array_agg(n.motion_comment_section_id ORDER BY n.motion_comment_section_id) from nm_group_read_comment_section_ids_motion_comment_section_t n where n.group_id = g.id) as read_comment_section_ids,
-(select array_agg(n.motion_comment_section_id ORDER BY n.motion_comment_section_id) from nm_group_write_comment_section_ids_motion_comment_section_t n where n.group_id = g.id) as write_comment_section_ids,
-(select array_agg(n.chat_group_id ORDER BY n.chat_group_id) from nm_chat_group_read_group_ids_group_t n where n.group_id = g.id) as read_chat_group_ids,
-(select array_agg(n.chat_group_id ORDER BY n.chat_group_id) from nm_chat_group_write_group_ids_group_t n where n.group_id = g.id) as write_chat_group_ids,
-(select array_agg(n.poll_id ORDER BY n.poll_id) from nm_group_poll_ids_poll_t n where n.group_id = g.id) as poll_ids
-FROM group_t g;
+array_remove(array_agg(n23.meeting_mediafile_id ORDER BY n23.meeting_mediafile_id), NULL) as meeting_mediafile_access_group_ids,
+array_remove(array_agg(n24.meeting_mediafile_id ORDER BY n24.meeting_mediafile_id), NULL) as meeting_mediafile_inherited_access_group_ids,
+array_remove(array_agg(n25.motion_comment_section_id ORDER BY n25.motion_comment_section_id), NULL) as read_comment_section_ids,
+array_remove(array_agg(n26.motion_comment_section_id ORDER BY n26.motion_comment_section_id), NULL) as write_comment_section_ids,
+array_remove(array_agg(n27.chat_group_id ORDER BY n27.chat_group_id), NULL) as read_chat_group_ids,
+array_remove(array_agg(n28.chat_group_id ORDER BY n28.chat_group_id), NULL) as write_chat_group_ids,
+array_remove(array_agg(n29.poll_id ORDER BY n29.poll_id), NULL) as poll_ids
+FROM group_t g
+LEFT JOIN nm_group_meeting_user_ids_meeting_user_t n22 on n22.group_id = g.id
+LEFT JOIN nm_group_mmagi_meeting_mediafile_t n23 on n23.group_id = g.id
+LEFT JOIN nm_group_mmiagi_meeting_mediafile_t n24 on n24.group_id = g.id
+LEFT JOIN nm_group_read_comment_section_ids_motion_comment_section_t n25 on n25.group_id = g.id
+LEFT JOIN nm_group_write_comment_section_ids_motion_comment_section_t n26 on n26.group_id = g.id
+LEFT JOIN nm_chat_group_read_group_ids_group_t n27 on n27.group_id = g.id
+LEFT JOIN nm_chat_group_write_group_ids_group_t n28 on n28.group_id = g.id
+LEFT JOIN nm_group_poll_ids_poll_t n29 on n29.group_id = g.id
+GROUP BY g.id;
 
 comment on column "group".meeting_mediafile_inherited_access_group_ids is 'Calculated field.';
 
 CREATE VIEW "history_entry" AS SELECT * FROM history_entry_t h;
 
 
-CREATE VIEW "history_position" AS SELECT *,
-(select array_agg(he.id ORDER BY he.id) from history_entry_t he where he.position_id = h.id) as entry_ids
-FROM history_position_t h;
+CREATE VIEW "history_position" AS SELECT h.*,
+array_remove(array_agg(he30.id ORDER BY he30.id), NULL) as entry_ids
+FROM history_position_t h
+LEFT JOIN history_entry_t he30 on he30.position_id = h.id
+GROUP BY h.id;
 
 
 CREATE VIEW "import_preview" AS SELECT * FROM import_preview_t i;
 
 
-CREATE VIEW "list_of_speakers" AS SELECT *,
-(select array_agg(s.id ORDER BY s.id) from speaker_t s where s.list_of_speakers_id = l.id) as speaker_ids,
-(select array_agg(s.id ORDER BY s.id) from structure_level_list_of_speakers_t s where s.list_of_speakers_id = l.id) as structure_level_list_of_speakers_ids,
-(select array_agg(p.id ORDER BY p.id) from projection_t p where p.content_object_id_list_of_speakers_id = l.id) as projection_ids
-FROM list_of_speakers_t l;
+CREATE VIEW "list_of_speakers" AS SELECT l.*,
+array_remove(array_agg(s31.id ORDER BY s31.id), NULL) as speaker_ids,
+array_remove(array_agg(s32.id ORDER BY s32.id), NULL) as structure_level_list_of_speakers_ids,
+array_remove(array_agg(p33.id ORDER BY p33.id), NULL) as projection_ids
+FROM list_of_speakers_t l
+LEFT JOIN speaker_t s31 on s31.list_of_speakers_id = l.id
+LEFT JOIN structure_level_list_of_speakers_t s32 on s32.list_of_speakers_id = l.id
+LEFT JOIN projection_t p33 on p33.content_object_id_list_of_speakers_id = l.id
+GROUP BY l.id;
 
 
-CREATE VIEW "mediafile" AS SELECT *,
-(select array_agg(mt.id ORDER BY mt.id) from mediafile_t mt where mt.parent_id = m.id) as child_ids,
-(select array_agg(mm.id ORDER BY mm.id) from meeting_mediafile_t mm where mm.mediafile_id = m.id) as meeting_mediafile_ids
-FROM mediafile_t m;
+CREATE VIEW "mediafile" AS SELECT m.*,
+array_remove(array_agg(mt34.id ORDER BY mt34.id), NULL) as child_ids,
+array_remove(array_agg(mm35.id ORDER BY mm35.id), NULL) as meeting_mediafile_ids
+FROM mediafile_t m
+LEFT JOIN mediafile_t mt34 on mt34.parent_id = m.id
+LEFT JOIN meeting_mediafile_t mm35 on mm35.mediafile_id = m.id
+GROUP BY m.id;
 
 
-CREATE VIEW "meeting" AS SELECT *,
-(select array_agg(g.id ORDER BY g.id) from group_t g where g.used_as_motion_poll_default_id = m.id) as motion_poll_default_group_ids,
-(select array_agg(p.id ORDER BY p.id) from poll_candidate_list_t p where p.meeting_id = m.id) as poll_candidate_list_ids,
-(select array_agg(p.id ORDER BY p.id) from poll_candidate_t p where p.meeting_id = m.id) as poll_candidate_ids,
-(select array_agg(mu.id ORDER BY mu.id) from meeting_user_t mu where mu.meeting_id = m.id) as meeting_user_ids,
-(select array_agg(g.id ORDER BY g.id) from group_t g where g.used_as_assignment_poll_default_id = m.id) as assignment_poll_default_group_ids,
-(select array_agg(g.id ORDER BY g.id) from group_t g where g.used_as_poll_default_id = m.id) as poll_default_group_ids,
-(select array_agg(g.id ORDER BY g.id) from group_t g where g.used_as_topic_poll_default_id = m.id) as topic_poll_default_group_ids,
-(select array_agg(p.id ORDER BY p.id) from projector_t p where p.meeting_id = m.id) as projector_ids,
-(select array_agg(p.id ORDER BY p.id) from projection_t p where p.meeting_id = m.id) as all_projection_ids,
-(select array_agg(p.id ORDER BY p.id) from projector_message_t p where p.meeting_id = m.id) as projector_message_ids,
-(select array_agg(p.id ORDER BY p.id) from projector_countdown_t p where p.meeting_id = m.id) as projector_countdown_ids,
-(select array_agg(t.id ORDER BY t.id) from tag_t t where t.meeting_id = m.id) as tag_ids,
-(select array_agg(a.id ORDER BY a.id) from agenda_item_t a where a.meeting_id = m.id) as agenda_item_ids,
-(select array_agg(l.id ORDER BY l.id) from list_of_speakers_t l where l.meeting_id = m.id) as list_of_speakers_ids,
-(select array_agg(s.id ORDER BY s.id) from structure_level_list_of_speakers_t s where s.meeting_id = m.id) as structure_level_list_of_speakers_ids,
-(select array_agg(p.id ORDER BY p.id) from point_of_order_category_t p where p.meeting_id = m.id) as point_of_order_category_ids,
-(select array_agg(s.id ORDER BY s.id) from speaker_t s where s.meeting_id = m.id) as speaker_ids,
-(select array_agg(t.id ORDER BY t.id) from topic_t t where t.meeting_id = m.id) as topic_ids,
-(select array_agg(g.id ORDER BY g.id) from group_t g where g.meeting_id = m.id) as group_ids,
-(select array_agg(mm.id ORDER BY mm.id) from meeting_mediafile_t mm where mm.meeting_id = m.id) as meeting_mediafile_ids,
-(select array_agg(mt.id ORDER BY mt.id) from mediafile_t mt where mt.owner_id_meeting_id = m.id) as mediafile_ids,
-(select array_agg(mt.id ORDER BY mt.id) from motion_t mt where mt.meeting_id = m.id) as motion_ids,
-(select array_agg(mt.id ORDER BY mt.id) from motion_t mt where mt.origin_meeting_id = m.id) as forwarded_motion_ids,
-(select array_agg(mc.id ORDER BY mc.id) from motion_comment_section_t mc where mc.meeting_id = m.id) as motion_comment_section_ids,
-(select array_agg(mc.id ORDER BY mc.id) from motion_category_t mc where mc.meeting_id = m.id) as motion_category_ids,
-(select array_agg(mb.id ORDER BY mb.id) from motion_block_t mb where mb.meeting_id = m.id) as motion_block_ids,
-(select array_agg(mw.id ORDER BY mw.id) from motion_workflow_t mw where mw.meeting_id = m.id) as motion_workflow_ids,
-(select array_agg(mc.id ORDER BY mc.id) from motion_comment_t mc where mc.meeting_id = m.id) as motion_comment_ids,
-(select array_agg(ms.id ORDER BY ms.id) from motion_submitter_t ms where ms.meeting_id = m.id) as motion_submitter_ids,
-(select array_agg(ms.id ORDER BY ms.id) from motion_supporter_t ms where ms.meeting_id = m.id) as motion_supporter_ids,
-(select array_agg(me.id ORDER BY me.id) from motion_editor_t me where me.meeting_id = m.id) as motion_editor_ids,
-(select array_agg(mw.id ORDER BY mw.id) from motion_working_group_speaker_t mw where mw.meeting_id = m.id) as motion_working_group_speaker_ids,
-(select array_agg(mc.id ORDER BY mc.id) from motion_change_recommendation_t mc where mc.meeting_id = m.id) as motion_change_recommendation_ids,
-(select array_agg(ms.id ORDER BY ms.id) from motion_state_t ms where ms.meeting_id = m.id) as motion_state_ids,
-(select array_agg(p.id ORDER BY p.id) from poll_t p where p.meeting_id = m.id) as poll_ids,
-(select array_agg(o.id ORDER BY o.id) from option_t o where o.meeting_id = m.id) as option_ids,
-(select array_agg(v.id ORDER BY v.id) from vote_t v where v.meeting_id = m.id) as vote_ids,
-(select array_agg(a.id ORDER BY a.id) from assignment_t a where a.meeting_id = m.id) as assignment_ids,
-(select array_agg(a.id ORDER BY a.id) from assignment_candidate_t a where a.meeting_id = m.id) as assignment_candidate_ids,
-(select array_agg(p.id ORDER BY p.id) from personal_note_t p where p.meeting_id = m.id) as personal_note_ids,
-(select array_agg(c.id ORDER BY c.id) from chat_group_t c where c.meeting_id = m.id) as chat_group_ids,
-(select array_agg(c.id ORDER BY c.id) from chat_message_t c where c.meeting_id = m.id) as chat_message_ids,
-(select array_agg(s.id ORDER BY s.id) from structure_level_t s where s.meeting_id = m.id) as structure_level_ids,
+CREATE VIEW "meeting" AS SELECT m.*,
+array_remove(array_agg(g36.id ORDER BY g36.id), NULL) as motion_poll_default_group_ids,
+array_remove(array_agg(p37.id ORDER BY p37.id), NULL) as poll_candidate_list_ids,
+array_remove(array_agg(p38.id ORDER BY p38.id), NULL) as poll_candidate_ids,
+array_remove(array_agg(mu39.id ORDER BY mu39.id), NULL) as meeting_user_ids,
+array_remove(array_agg(g40.id ORDER BY g40.id), NULL) as assignment_poll_default_group_ids,
+array_remove(array_agg(g41.id ORDER BY g41.id), NULL) as poll_default_group_ids,
+array_remove(array_agg(g42.id ORDER BY g42.id), NULL) as topic_poll_default_group_ids,
+array_remove(array_agg(p43.id ORDER BY p43.id), NULL) as projector_ids,
+array_remove(array_agg(p44.id ORDER BY p44.id), NULL) as all_projection_ids,
+array_remove(array_agg(p45.id ORDER BY p45.id), NULL) as projector_message_ids,
+array_remove(array_agg(p46.id ORDER BY p46.id), NULL) as projector_countdown_ids,
+array_remove(array_agg(t47.id ORDER BY t47.id), NULL) as tag_ids,
+array_remove(array_agg(a48.id ORDER BY a48.id), NULL) as agenda_item_ids,
+array_remove(array_agg(l49.id ORDER BY l49.id), NULL) as list_of_speakers_ids,
+array_remove(array_agg(s50.id ORDER BY s50.id), NULL) as structure_level_list_of_speakers_ids,
+array_remove(array_agg(p51.id ORDER BY p51.id), NULL) as point_of_order_category_ids,
+array_remove(array_agg(s52.id ORDER BY s52.id), NULL) as speaker_ids,
+array_remove(array_agg(t53.id ORDER BY t53.id), NULL) as topic_ids,
+array_remove(array_agg(g54.id ORDER BY g54.id), NULL) as group_ids,
+array_remove(array_agg(mm55.id ORDER BY mm55.id), NULL) as meeting_mediafile_ids,
+array_remove(array_agg(mt56.id ORDER BY mt56.id), NULL) as mediafile_ids,
+array_remove(array_agg(mt57.id ORDER BY mt57.id), NULL) as motion_ids,
+array_remove(array_agg(mt58.id ORDER BY mt58.id), NULL) as forwarded_motion_ids,
+array_remove(array_agg(mc59.id ORDER BY mc59.id), NULL) as motion_comment_section_ids,
+array_remove(array_agg(mc60.id ORDER BY mc60.id), NULL) as motion_category_ids,
+array_remove(array_agg(mb61.id ORDER BY mb61.id), NULL) as motion_block_ids,
+array_remove(array_agg(mw62.id ORDER BY mw62.id), NULL) as motion_workflow_ids,
+array_remove(array_agg(mc63.id ORDER BY mc63.id), NULL) as motion_comment_ids,
+array_remove(array_agg(ms64.id ORDER BY ms64.id), NULL) as motion_submitter_ids,
+array_remove(array_agg(ms65.id ORDER BY ms65.id), NULL) as motion_supporter_ids,
+array_remove(array_agg(me66.id ORDER BY me66.id), NULL) as motion_editor_ids,
+array_remove(array_agg(mw67.id ORDER BY mw67.id), NULL) as motion_working_group_speaker_ids,
+array_remove(array_agg(mc68.id ORDER BY mc68.id), NULL) as motion_change_recommendation_ids,
+array_remove(array_agg(ms69.id ORDER BY ms69.id), NULL) as motion_state_ids,
+array_remove(array_agg(p70.id ORDER BY p70.id), NULL) as poll_ids,
+array_remove(array_agg(o71.id ORDER BY o71.id), NULL) as option_ids,
+array_remove(array_agg(v72.id ORDER BY v72.id), NULL) as vote_ids,
+array_remove(array_agg(a73.id ORDER BY a73.id), NULL) as assignment_ids,
+array_remove(array_agg(a74.id ORDER BY a74.id), NULL) as assignment_candidate_ids,
+array_remove(array_agg(p75.id ORDER BY p75.id), NULL) as personal_note_ids,
+array_remove(array_agg(c76.id ORDER BY c76.id), NULL) as chat_group_ids,
+array_remove(array_agg(c77.id ORDER BY c77.id), NULL) as chat_message_ids,
+array_remove(array_agg(s78.id ORDER BY s78.id), NULL) as structure_level_ids,
 (select c.id from committee_t c where c.default_meeting_id = m.id) as default_meeting_for_committee_id,
-(select array_agg(g.organization_tag_id ORDER BY g.organization_tag_id) from gm_organization_tag_tagged_ids_t g where g.tagged_id_meeting_id = m.id) as organization_tag_ids,
-(select array_agg(n.user_id ORDER BY n.user_id) from nm_meeting_present_user_ids_user_t n where n.meeting_id = m.id) as present_user_ids,
+array_remove(array_agg(g79.organization_tag_id ORDER BY g79.organization_tag_id), NULL) as organization_tag_ids,
+array_remove(array_agg(n80.user_id ORDER BY n80.user_id), NULL) as present_user_ids,
 (
   SELECT array_agg(DISTINCT mu.user_id ORDER BY mu.user_id)
   FROM meeting_user_t mu
@@ -1734,34 +1779,96 @@ CREATE VIEW "meeting" AS SELECT *,
   WHERE mu.meeting_id = m.id
 ) AS user_ids
 ,
-(select array_agg(p.id ORDER BY p.id) from projection_t p where p.content_object_id_meeting_id = m.id) as projection_ids,
-(select array_agg(p.id ORDER BY p.id) from projector_t p where p.used_as_default_projector_for_agenda_item_list_in_meeting_id = m.id) as default_projector_agenda_item_list_ids,
-(select array_agg(p.id ORDER BY p.id) from projector_t p where p.used_as_default_projector_for_topic_in_meeting_id = m.id) as default_projector_topic_ids,
-(select array_agg(p.id ORDER BY p.id) from projector_t p where p.used_as_default_projector_for_list_of_speakers_in_meeting_id = m.id) as default_projector_list_of_speakers_ids,
-(select array_agg(p.id ORDER BY p.id) from projector_t p where p.used_as_default_projector_for_current_los_in_meeting_id = m.id) as default_projector_current_los_ids,
-(select array_agg(p.id ORDER BY p.id) from projector_t p where p.used_as_default_projector_for_motion_in_meeting_id = m.id) as default_projector_motion_ids,
-(select array_agg(p.id ORDER BY p.id) from projector_t p where p.used_as_default_projector_for_amendment_in_meeting_id = m.id) as default_projector_amendment_ids,
-(select array_agg(p.id ORDER BY p.id) from projector_t p where p.used_as_default_projector_for_motion_block_in_meeting_id = m.id) as default_projector_motion_block_ids,
-(select array_agg(p.id ORDER BY p.id) from projector_t p where p.used_as_default_projector_for_assignment_in_meeting_id = m.id) as default_projector_assignment_ids,
-(select array_agg(p.id ORDER BY p.id) from projector_t p where p.used_as_default_projector_for_mediafile_in_meeting_id = m.id) as default_projector_mediafile_ids,
-(select array_agg(p.id ORDER BY p.id) from projector_t p where p.used_as_default_projector_for_message_in_meeting_id = m.id) as default_projector_message_ids,
-(select array_agg(p.id ORDER BY p.id) from projector_t p where p.used_as_default_projector_for_countdown_in_meeting_id = m.id) as default_projector_countdown_ids,
-(select array_agg(p.id ORDER BY p.id) from projector_t p where p.used_as_default_projector_for_assignment_poll_in_meeting_id = m.id) as default_projector_assignment_poll_ids,
-(select array_agg(p.id ORDER BY p.id) from projector_t p where p.used_as_default_projector_for_motion_poll_in_meeting_id = m.id) as default_projector_motion_poll_ids,
-(select array_agg(p.id ORDER BY p.id) from projector_t p where p.used_as_default_projector_for_poll_in_meeting_id = m.id) as default_projector_poll_ids,
-(select array_agg(h.id ORDER BY h.id) from history_entry_t h where h.meeting_id = m.id) as relevant_history_entry_ids
-FROM meeting_t m;
+array_remove(array_agg(p81.id ORDER BY p81.id), NULL) as projection_ids,
+array_remove(array_agg(p82.id ORDER BY p82.id), NULL) as default_projector_agenda_item_list_ids,
+array_remove(array_agg(p83.id ORDER BY p83.id), NULL) as default_projector_topic_ids,
+array_remove(array_agg(p84.id ORDER BY p84.id), NULL) as default_projector_list_of_speakers_ids,
+array_remove(array_agg(p85.id ORDER BY p85.id), NULL) as default_projector_current_los_ids,
+array_remove(array_agg(p86.id ORDER BY p86.id), NULL) as default_projector_motion_ids,
+array_remove(array_agg(p87.id ORDER BY p87.id), NULL) as default_projector_amendment_ids,
+array_remove(array_agg(p88.id ORDER BY p88.id), NULL) as default_projector_motion_block_ids,
+array_remove(array_agg(p89.id ORDER BY p89.id), NULL) as default_projector_assignment_ids,
+array_remove(array_agg(p90.id ORDER BY p90.id), NULL) as default_projector_mediafile_ids,
+array_remove(array_agg(p91.id ORDER BY p91.id), NULL) as default_projector_message_ids,
+array_remove(array_agg(p92.id ORDER BY p92.id), NULL) as default_projector_countdown_ids,
+array_remove(array_agg(p93.id ORDER BY p93.id), NULL) as default_projector_assignment_poll_ids,
+array_remove(array_agg(p94.id ORDER BY p94.id), NULL) as default_projector_motion_poll_ids,
+array_remove(array_agg(p95.id ORDER BY p95.id), NULL) as default_projector_poll_ids,
+array_remove(array_agg(h96.id ORDER BY h96.id), NULL) as relevant_history_entry_ids
+FROM meeting_t m
+LEFT JOIN group_t g36 on g36.used_as_motion_poll_default_id = m.id
+LEFT JOIN poll_candidate_list_t p37 on p37.meeting_id = m.id
+LEFT JOIN poll_candidate_t p38 on p38.meeting_id = m.id
+LEFT JOIN meeting_user_t mu39 on mu39.meeting_id = m.id
+LEFT JOIN group_t g40 on g40.used_as_assignment_poll_default_id = m.id
+LEFT JOIN group_t g41 on g41.used_as_poll_default_id = m.id
+LEFT JOIN group_t g42 on g42.used_as_topic_poll_default_id = m.id
+LEFT JOIN projector_t p43 on p43.meeting_id = m.id
+LEFT JOIN projection_t p44 on p44.meeting_id = m.id
+LEFT JOIN projector_message_t p45 on p45.meeting_id = m.id
+LEFT JOIN projector_countdown_t p46 on p46.meeting_id = m.id
+LEFT JOIN tag_t t47 on t47.meeting_id = m.id
+LEFT JOIN agenda_item_t a48 on a48.meeting_id = m.id
+LEFT JOIN list_of_speakers_t l49 on l49.meeting_id = m.id
+LEFT JOIN structure_level_list_of_speakers_t s50 on s50.meeting_id = m.id
+LEFT JOIN point_of_order_category_t p51 on p51.meeting_id = m.id
+LEFT JOIN speaker_t s52 on s52.meeting_id = m.id
+LEFT JOIN topic_t t53 on t53.meeting_id = m.id
+LEFT JOIN group_t g54 on g54.meeting_id = m.id
+LEFT JOIN meeting_mediafile_t mm55 on mm55.meeting_id = m.id
+LEFT JOIN mediafile_t mt56 on mt56.owner_id_meeting_id = m.id
+LEFT JOIN motion_t mt57 on mt57.meeting_id = m.id
+LEFT JOIN motion_t mt58 on mt58.origin_meeting_id = m.id
+LEFT JOIN motion_comment_section_t mc59 on mc59.meeting_id = m.id
+LEFT JOIN motion_category_t mc60 on mc60.meeting_id = m.id
+LEFT JOIN motion_block_t mb61 on mb61.meeting_id = m.id
+LEFT JOIN motion_workflow_t mw62 on mw62.meeting_id = m.id
+LEFT JOIN motion_comment_t mc63 on mc63.meeting_id = m.id
+LEFT JOIN motion_submitter_t ms64 on ms64.meeting_id = m.id
+LEFT JOIN motion_supporter_t ms65 on ms65.meeting_id = m.id
+LEFT JOIN motion_editor_t me66 on me66.meeting_id = m.id
+LEFT JOIN motion_working_group_speaker_t mw67 on mw67.meeting_id = m.id
+LEFT JOIN motion_change_recommendation_t mc68 on mc68.meeting_id = m.id
+LEFT JOIN motion_state_t ms69 on ms69.meeting_id = m.id
+LEFT JOIN poll_t p70 on p70.meeting_id = m.id
+LEFT JOIN option_t o71 on o71.meeting_id = m.id
+LEFT JOIN vote_t v72 on v72.meeting_id = m.id
+LEFT JOIN assignment_t a73 on a73.meeting_id = m.id
+LEFT JOIN assignment_candidate_t a74 on a74.meeting_id = m.id
+LEFT JOIN personal_note_t p75 on p75.meeting_id = m.id
+LEFT JOIN chat_group_t c76 on c76.meeting_id = m.id
+LEFT JOIN chat_message_t c77 on c77.meeting_id = m.id
+LEFT JOIN structure_level_t s78 on s78.meeting_id = m.id
+LEFT JOIN gm_organization_tag_tagged_ids_t g79 on g79.tagged_id_meeting_id = m.id
+LEFT JOIN nm_meeting_present_user_ids_user_t n80 on n80.meeting_id = m.id
+LEFT JOIN projection_t p81 on p81.content_object_id_meeting_id = m.id
+LEFT JOIN projector_t p82 on p82.used_as_default_projector_for_agenda_item_list_in_meeting_id = m.id
+LEFT JOIN projector_t p83 on p83.used_as_default_projector_for_topic_in_meeting_id = m.id
+LEFT JOIN projector_t p84 on p84.used_as_default_projector_for_list_of_speakers_in_meeting_id = m.id
+LEFT JOIN projector_t p85 on p85.used_as_default_projector_for_current_los_in_meeting_id = m.id
+LEFT JOIN projector_t p86 on p86.used_as_default_projector_for_motion_in_meeting_id = m.id
+LEFT JOIN projector_t p87 on p87.used_as_default_projector_for_amendment_in_meeting_id = m.id
+LEFT JOIN projector_t p88 on p88.used_as_default_projector_for_motion_block_in_meeting_id = m.id
+LEFT JOIN projector_t p89 on p89.used_as_default_projector_for_assignment_in_meeting_id = m.id
+LEFT JOIN projector_t p90 on p90.used_as_default_projector_for_mediafile_in_meeting_id = m.id
+LEFT JOIN projector_t p91 on p91.used_as_default_projector_for_message_in_meeting_id = m.id
+LEFT JOIN projector_t p92 on p92.used_as_default_projector_for_countdown_in_meeting_id = m.id
+LEFT JOIN projector_t p93 on p93.used_as_default_projector_for_assignment_poll_in_meeting_id = m.id
+LEFT JOIN projector_t p94 on p94.used_as_default_projector_for_motion_poll_in_meeting_id = m.id
+LEFT JOIN projector_t p95 on p95.used_as_default_projector_for_poll_in_meeting_id = m.id
+LEFT JOIN history_entry_t h96 on h96.meeting_id = m.id
+GROUP BY m.id;
 
 comment on column "meeting_t".is_active_in_organization_id is 'Backrelation and boolean flag at once';
 comment on column "meeting_t".is_archived_in_organization_id is 'Backrelation and boolean flag at once';
 comment on column "meeting".user_ids is 'Calculated. All user ids from all users assigned to groups of this meeting.';
 
-CREATE VIEW "meeting_mediafile" AS SELECT *,
-(select array_agg(n.group_id ORDER BY n.group_id) from nm_group_mmiagi_meeting_mediafile_t n where n.meeting_mediafile_id = m.id) as inherited_access_group_ids,
-(select array_agg(n.group_id ORDER BY n.group_id) from nm_group_mmagi_meeting_mediafile_t n where n.meeting_mediafile_id = m.id) as access_group_ids,
+CREATE VIEW "meeting_mediafile" AS SELECT m.*,
+array_remove(array_agg(n97.group_id ORDER BY n97.group_id), NULL) as inherited_access_group_ids,
+array_remove(array_agg(n98.group_id ORDER BY n98.group_id), NULL) as access_group_ids,
 (select l.id from list_of_speakers_t l where l.content_object_id_meeting_mediafile_id = m.id) as list_of_speakers_id,
-(select array_agg(p.id ORDER BY p.id) from projection_t p where p.content_object_id_meeting_mediafile_id = m.id) as projection_ids,
-(select array_agg(g.attachment_id ORDER BY g.attachment_id) from gm_meeting_mediafile_attachment_ids_t g where g.meeting_mediafile_id = m.id) as attachment_ids,
+array_remove(array_agg(p99.id ORDER BY p99.id), NULL) as projection_ids,
+array_remove(array_agg(g0.attachment_id ORDER BY g0.attachment_id), NULL) as attachment_ids,
 (select m1.id from meeting_t m1 where m1.logo_projector_main_id = m.id) as used_as_logo_projector_main_in_meeting_id,
 (select m1.id from meeting_t m1 where m1.logo_projector_header_id = m.id) as used_as_logo_projector_header_in_meeting_id,
 (select m1.id from meeting_t m1 where m1.logo_web_header_id = m.id) as used_as_logo_web_header_in_meeting_id,
@@ -1778,66 +1885,109 @@ CREATE VIEW "meeting_mediafile" AS SELECT *,
 (select m1.id from meeting_t m1 where m1.font_chyron_speaker_name_id = m.id) as used_as_font_chyron_speaker_name_in_meeting_id,
 (select m1.id from meeting_t m1 where m1.font_projector_h1_id = m.id) as used_as_font_projector_h1_in_meeting_id,
 (select m1.id from meeting_t m1 where m1.font_projector_h2_id = m.id) as used_as_font_projector_h2_in_meeting_id
-FROM meeting_mediafile_t m;
+FROM meeting_mediafile_t m
+LEFT JOIN nm_group_mmiagi_meeting_mediafile_t n97 on n97.meeting_mediafile_id = m.id
+LEFT JOIN nm_group_mmagi_meeting_mediafile_t n98 on n98.meeting_mediafile_id = m.id
+LEFT JOIN projection_t p99 on p99.content_object_id_meeting_mediafile_id = m.id
+GROUP BY m.id;
 
 comment on column "meeting_mediafile".inherited_access_group_ids is 'Calculated in actions. Shows what access group permissions are actually relevant. Calculated as the intersection of this meeting_mediafiles access_group_ids and the related mediafiles potential parent mediafiles inherited_access_group_ids. If the parent has no meeting_mediafile for this meeting, its inherited access group is assumed to be the meetings admin group. If there is no parent, the inherited_access_group_ids is equal to the access_group_ids. If the access_group_ids are empty, the interpretations is that every group has access rights, therefore the parent inherited_access_group_ids are used as-is.';
 
-CREATE VIEW "meeting_user" AS SELECT *,
-(select array_agg(p.id ORDER BY p.id) from personal_note_t p where p.meeting_user_id = m.id) as personal_note_ids,
-(select array_agg(s.id ORDER BY s.id) from speaker_t s where s.meeting_user_id = m.id) as speaker_ids,
-(select array_agg(ms.id ORDER BY ms.id) from motion_supporter_t ms where ms.meeting_user_id = m.id) as motion_supporter_ids,
-(select array_agg(me.id ORDER BY me.id) from motion_editor_t me where me.meeting_user_id = m.id) as motion_editor_ids,
-(select array_agg(mw.id ORDER BY mw.id) from motion_working_group_speaker_t mw where mw.meeting_user_id = m.id) as motion_working_group_speaker_ids,
-(select array_agg(ms.id ORDER BY ms.id) from motion_submitter_t ms where ms.meeting_user_id = m.id) as motion_submitter_ids,
-(select array_agg(a.id ORDER BY a.id) from assignment_candidate_t a where a.meeting_user_id = m.id) as assignment_candidate_ids,
-(select array_agg(mu.id ORDER BY mu.id) from meeting_user_t mu where mu.vote_delegated_to_id = m.id) as vote_delegations_from_ids,
-(select array_agg(c.id ORDER BY c.id) from chat_message_t c where c.meeting_user_id = m.id) as chat_message_ids,
-(select array_agg(n.group_id ORDER BY n.group_id) from nm_group_meeting_user_ids_meeting_user_t n where n.meeting_user_id = m.id) as group_ids,
-(select array_agg(n.structure_level_id ORDER BY n.structure_level_id) from nm_meeting_user_structure_level_ids_structure_level_t n where n.meeting_user_id = m.id) as structure_level_ids
-FROM meeting_user_t m;
+CREATE VIEW "meeting_user" AS SELECT m.*,
+array_remove(array_agg(p100.id ORDER BY p100.id), NULL) as personal_note_ids,
+array_remove(array_agg(s101.id ORDER BY s101.id), NULL) as speaker_ids,
+array_remove(array_agg(ms102.id ORDER BY ms102.id), NULL) as motion_supporter_ids,
+array_remove(array_agg(me103.id ORDER BY me103.id), NULL) as motion_editor_ids,
+array_remove(array_agg(mw104.id ORDER BY mw104.id), NULL) as motion_working_group_speaker_ids,
+array_remove(array_agg(ms105.id ORDER BY ms105.id), NULL) as motion_submitter_ids,
+array_remove(array_agg(a106.id ORDER BY a106.id), NULL) as assignment_candidate_ids,
+array_remove(array_agg(mu107.id ORDER BY mu107.id), NULL) as vote_delegations_from_ids,
+array_remove(array_agg(c108.id ORDER BY c108.id), NULL) as chat_message_ids,
+array_remove(array_agg(n109.group_id ORDER BY n109.group_id), NULL) as group_ids,
+array_remove(array_agg(n110.structure_level_id ORDER BY n110.structure_level_id), NULL) as structure_level_ids
+FROM meeting_user_t m
+LEFT JOIN personal_note_t p100 on p100.meeting_user_id = m.id
+LEFT JOIN speaker_t s101 on s101.meeting_user_id = m.id
+LEFT JOIN motion_supporter_t ms102 on ms102.meeting_user_id = m.id
+LEFT JOIN motion_editor_t me103 on me103.meeting_user_id = m.id
+LEFT JOIN motion_working_group_speaker_t mw104 on mw104.meeting_user_id = m.id
+LEFT JOIN motion_submitter_t ms105 on ms105.meeting_user_id = m.id
+LEFT JOIN assignment_candidate_t a106 on a106.meeting_user_id = m.id
+LEFT JOIN meeting_user_t mu107 on mu107.vote_delegated_to_id = m.id
+LEFT JOIN chat_message_t c108 on c108.meeting_user_id = m.id
+LEFT JOIN nm_group_meeting_user_ids_meeting_user_t n109 on n109.meeting_user_id = m.id
+LEFT JOIN nm_meeting_user_structure_level_ids_structure_level_t n110 on n110.meeting_user_id = m.id
+GROUP BY m.id;
 
 
-CREATE VIEW "motion" AS SELECT *,
-(select array_agg(mt.id ORDER BY mt.id) from motion_t mt where mt.lead_motion_id = m.id) as amendment_ids,
-(select array_agg(mt.id ORDER BY mt.id) from motion_t mt where mt.sort_parent_id = m.id) as sort_child_ids,
-(select array_agg(mt.id ORDER BY mt.id) from motion_t mt where mt.origin_id = m.id) as derived_motion_ids,
-(select array_agg(n.all_origin_id ORDER BY n.all_origin_id) from nm_motion_all_derived_motion_ids_motion_t n where n.all_derived_motion_id = m.id) as all_origin_ids,
-(select array_agg(n.all_derived_motion_id ORDER BY n.all_derived_motion_id) from nm_motion_all_derived_motion_ids_motion_t n where n.all_origin_id = m.id) as all_derived_motion_ids,
-(select array_cat((select array_agg(n.identical_motion_id_1 ORDER BY n.identical_motion_id_1) from nm_motion_identical_motion_ids_motion_t n where n.identical_motion_id_2 = m.id), (select array_agg(n.identical_motion_id_2 ORDER BY n.identical_motion_id_2) from nm_motion_identical_motion_ids_motion_t n where n.identical_motion_id_1 = m.id))) as identical_motion_ids,
-(select array_agg(g.state_extension_reference_id ORDER BY g.state_extension_reference_id) from gm_motion_state_extension_reference_ids_t g where g.motion_id = m.id) as state_extension_reference_ids,
-(select array_agg(g.motion_id ORDER BY g.motion_id) from gm_motion_state_extension_reference_ids_t g where g.state_extension_reference_id_motion_id = m.id) as referenced_in_motion_state_extension_ids,
-(select array_agg(g.recommendation_extension_reference_id ORDER BY g.recommendation_extension_reference_id) from gm_motion_recommendation_extension_reference_ids_t g where g.motion_id = m.id) as recommendation_extension_reference_ids,
-(select array_agg(g.motion_id ORDER BY g.motion_id) from gm_motion_recommendation_extension_reference_ids_t g where g.recommendation_extension_reference_id_motion_id = m.id) as referenced_in_motion_recommendation_extension_ids,
-(select array_agg(ms.id ORDER BY ms.id) from motion_submitter_t ms where ms.motion_id = m.id) as submitter_ids,
-(select array_agg(ms.id ORDER BY ms.id) from motion_supporter_t ms where ms.motion_id = m.id) as supporter_ids,
-(select array_agg(me.id ORDER BY me.id) from motion_editor_t me where me.motion_id = m.id) as editor_ids,
-(select array_agg(mw.id ORDER BY mw.id) from motion_working_group_speaker_t mw where mw.motion_id = m.id) as working_group_speaker_ids,
-(select array_agg(p.id ORDER BY p.id) from poll_t p where p.content_object_id_motion_id = m.id) as poll_ids,
-(select array_agg(o.id ORDER BY o.id) from option_t o where o.content_object_id_motion_id = m.id) as option_ids,
-(select array_agg(mc.id ORDER BY mc.id) from motion_change_recommendation_t mc where mc.motion_id = m.id) as change_recommendation_ids,
-(select array_agg(mc.id ORDER BY mc.id) from motion_comment_t mc where mc.motion_id = m.id) as comment_ids,
+CREATE VIEW "motion" AS SELECT m.*,
+array_remove(array_agg(mt111.id ORDER BY mt111.id), NULL) as amendment_ids,
+array_remove(array_agg(mt112.id ORDER BY mt112.id), NULL) as sort_child_ids,
+array_remove(array_agg(mt113.id ORDER BY mt113.id), NULL) as derived_motion_ids,
+array_remove(array_agg(n114.all_origin_id ORDER BY n114.all_origin_id), NULL) as all_origin_ids,
+array_remove(array_agg(n115.all_derived_motion_id ORDER BY n115.all_derived_motion_id), NULL) as all_derived_motion_ids,
+(select array_cat((select array_agg(n116.identical_motion_id_1 ORDER BY n116.identical_motion_id_1) from nm_motion_identical_motion_ids_motion_t n116 where n116.identical_motion_id_2 = m.id), (select array_agg(n116.identical_motion_id_2 ORDER BY n116.identical_motion_id_2) from nm_motion_identical_motion_ids_motion_t n116 where n116.identical_motion_id_1 = m.id))) as identical_motion_ids,
+array_remove(array_agg(g0.state_extension_reference_id ORDER BY g0.state_extension_reference_id), NULL) as state_extension_reference_ids,
+array_remove(array_agg(g117.motion_id ORDER BY g117.motion_id), NULL) as referenced_in_motion_state_extension_ids,
+array_remove(array_agg(g0.recommendation_extension_reference_id ORDER BY g0.recommendation_extension_reference_id), NULL) as recommendation_extension_reference_ids,
+array_remove(array_agg(g118.motion_id ORDER BY g118.motion_id), NULL) as referenced_in_motion_recommendation_extension_ids,
+array_remove(array_agg(ms119.id ORDER BY ms119.id), NULL) as submitter_ids,
+array_remove(array_agg(ms120.id ORDER BY ms120.id), NULL) as supporter_ids,
+array_remove(array_agg(me121.id ORDER BY me121.id), NULL) as editor_ids,
+array_remove(array_agg(mw122.id ORDER BY mw122.id), NULL) as working_group_speaker_ids,
+array_remove(array_agg(p123.id ORDER BY p123.id), NULL) as poll_ids,
+array_remove(array_agg(o124.id ORDER BY o124.id), NULL) as option_ids,
+array_remove(array_agg(mc125.id ORDER BY mc125.id), NULL) as change_recommendation_ids,
+array_remove(array_agg(mc126.id ORDER BY mc126.id), NULL) as comment_ids,
 (select a.id from agenda_item_t a where a.content_object_id_motion_id = m.id) as agenda_item_id,
 (select l.id from list_of_speakers_t l where l.content_object_id_motion_id = m.id) as list_of_speakers_id,
-(select array_agg(g.tag_id ORDER BY g.tag_id) from gm_tag_tagged_ids_t g where g.tagged_id_motion_id = m.id) as tag_ids,
-(select array_agg(g.meeting_mediafile_id ORDER BY g.meeting_mediafile_id) from gm_meeting_mediafile_attachment_ids_t g where g.attachment_id_motion_id = m.id) as attachment_meeting_mediafile_ids,
-(select array_agg(p.id ORDER BY p.id) from projection_t p where p.content_object_id_motion_id = m.id) as projection_ids,
-(select array_agg(p.id ORDER BY p.id) from personal_note_t p where p.content_object_id_motion_id = m.id) as personal_note_ids,
-(select array_agg(h.id ORDER BY h.id) from history_entry_t h where h.model_id_motion_id = m.id) as history_entry_ids
-FROM motion_t m;
+array_remove(array_agg(g127.tag_id ORDER BY g127.tag_id), NULL) as tag_ids,
+array_remove(array_agg(g128.meeting_mediafile_id ORDER BY g128.meeting_mediafile_id), NULL) as attachment_meeting_mediafile_ids,
+array_remove(array_agg(p129.id ORDER BY p129.id), NULL) as projection_ids,
+array_remove(array_agg(p130.id ORDER BY p130.id), NULL) as personal_note_ids,
+array_remove(array_agg(h131.id ORDER BY h131.id), NULL) as history_entry_ids
+FROM motion_t m
+LEFT JOIN motion_t mt111 on mt111.lead_motion_id = m.id
+LEFT JOIN motion_t mt112 on mt112.sort_parent_id = m.id
+LEFT JOIN motion_t mt113 on mt113.origin_id = m.id
+LEFT JOIN nm_motion_all_derived_motion_ids_motion_t n114 on n114.all_derived_motion_id = m.id
+LEFT JOIN nm_motion_all_derived_motion_ids_motion_t n115 on n115.all_origin_id = m.id
+LEFT JOIN gm_motion_state_extension_reference_ids_t g117 on g117.state_extension_reference_id_motion_id = m.id
+LEFT JOIN gm_motion_recommendation_extension_reference_ids_t g118 on g118.recommendation_extension_reference_id_motion_id = m.id
+LEFT JOIN motion_submitter_t ms119 on ms119.motion_id = m.id
+LEFT JOIN motion_supporter_t ms120 on ms120.motion_id = m.id
+LEFT JOIN motion_editor_t me121 on me121.motion_id = m.id
+LEFT JOIN motion_working_group_speaker_t mw122 on mw122.motion_id = m.id
+LEFT JOIN poll_t p123 on p123.content_object_id_motion_id = m.id
+LEFT JOIN option_t o124 on o124.content_object_id_motion_id = m.id
+LEFT JOIN motion_change_recommendation_t mc125 on mc125.motion_id = m.id
+LEFT JOIN motion_comment_t mc126 on mc126.motion_id = m.id
+LEFT JOIN gm_tag_tagged_ids_t g127 on g127.tagged_id_motion_id = m.id
+LEFT JOIN gm_meeting_mediafile_attachment_ids_t g128 on g128.attachment_id_motion_id = m.id
+LEFT JOIN projection_t p129 on p129.content_object_id_motion_id = m.id
+LEFT JOIN personal_note_t p130 on p130.content_object_id_motion_id = m.id
+LEFT JOIN history_entry_t h131 on h131.model_id_motion_id = m.id
+GROUP BY m.id;
 
 
-CREATE VIEW "motion_block" AS SELECT *,
-(select array_agg(mt.id ORDER BY mt.id) from motion_t mt where mt.block_id = m.id) as motion_ids,
+CREATE VIEW "motion_block" AS SELECT m.*,
+array_remove(array_agg(mt132.id ORDER BY mt132.id), NULL) as motion_ids,
 (select a.id from agenda_item_t a where a.content_object_id_motion_block_id = m.id) as agenda_item_id,
 (select l.id from list_of_speakers_t l where l.content_object_id_motion_block_id = m.id) as list_of_speakers_id,
-(select array_agg(p.id ORDER BY p.id) from projection_t p where p.content_object_id_motion_block_id = m.id) as projection_ids
-FROM motion_block_t m;
+array_remove(array_agg(p133.id ORDER BY p133.id), NULL) as projection_ids
+FROM motion_block_t m
+LEFT JOIN motion_t mt132 on mt132.block_id = m.id
+LEFT JOIN projection_t p133 on p133.content_object_id_motion_block_id = m.id
+GROUP BY m.id;
 
 
-CREATE VIEW "motion_category" AS SELECT *,
-(select array_agg(mc.id ORDER BY mc.id) from motion_category_t mc where mc.parent_id = m.id) as child_ids,
-(select array_agg(mt.id ORDER BY mt.id) from motion_t mt where mt.category_id = m.id) as motion_ids
-FROM motion_category_t m;
+CREATE VIEW "motion_category" AS SELECT m.*,
+array_remove(array_agg(mc134.id ORDER BY mc134.id), NULL) as child_ids,
+array_remove(array_agg(mt135.id ORDER BY mt135.id), NULL) as motion_ids
+FROM motion_category_t m
+LEFT JOIN motion_category_t mc134 on mc134.parent_id = m.id
+LEFT JOIN motion_t mt135 on mt135.category_id = m.id
+GROUP BY m.id;
 
 
 CREATE VIEW "motion_change_recommendation" AS SELECT * FROM motion_change_recommendation_t m;
@@ -1846,24 +1996,34 @@ CREATE VIEW "motion_change_recommendation" AS SELECT * FROM motion_change_recomm
 CREATE VIEW "motion_comment" AS SELECT * FROM motion_comment_t m;
 
 
-CREATE VIEW "motion_comment_section" AS SELECT *,
-(select array_agg(mc.id ORDER BY mc.id) from motion_comment_t mc where mc.section_id = m.id) as comment_ids,
-(select array_agg(n.group_id ORDER BY n.group_id) from nm_group_read_comment_section_ids_motion_comment_section_t n where n.motion_comment_section_id = m.id) as read_group_ids,
-(select array_agg(n.group_id ORDER BY n.group_id) from nm_group_write_comment_section_ids_motion_comment_section_t n where n.motion_comment_section_id = m.id) as write_group_ids
-FROM motion_comment_section_t m;
+CREATE VIEW "motion_comment_section" AS SELECT m.*,
+array_remove(array_agg(mc136.id ORDER BY mc136.id), NULL) as comment_ids,
+array_remove(array_agg(n137.group_id ORDER BY n137.group_id), NULL) as read_group_ids,
+array_remove(array_agg(n138.group_id ORDER BY n138.group_id), NULL) as write_group_ids
+FROM motion_comment_section_t m
+LEFT JOIN motion_comment_t mc136 on mc136.section_id = m.id
+LEFT JOIN nm_group_read_comment_section_ids_motion_comment_section_t n137 on n137.motion_comment_section_id = m.id
+LEFT JOIN nm_group_write_comment_section_ids_motion_comment_section_t n138 on n138.motion_comment_section_id = m.id
+GROUP BY m.id;
 
 
 CREATE VIEW "motion_editor" AS SELECT * FROM motion_editor_t m;
 
 
-CREATE VIEW "motion_state" AS SELECT *,
-(select array_agg(ms.id ORDER BY ms.id) from motion_state_t ms where ms.submitter_withdraw_state_id = m.id) as submitter_withdraw_back_ids,
-(select array_agg(n.next_state_id ORDER BY n.next_state_id) from nm_motion_state_next_state_ids_motion_state_t n where n.previous_state_id = m.id) as next_state_ids,
-(select array_agg(n.previous_state_id ORDER BY n.previous_state_id) from nm_motion_state_next_state_ids_motion_state_t n where n.next_state_id = m.id) as previous_state_ids,
-(select array_agg(mt.id ORDER BY mt.id) from motion_t mt where mt.state_id = m.id) as motion_ids,
-(select array_agg(mt.id ORDER BY mt.id) from motion_t mt where mt.recommendation_id = m.id) as motion_recommendation_ids,
+CREATE VIEW "motion_state" AS SELECT m.*,
+array_remove(array_agg(ms139.id ORDER BY ms139.id), NULL) as submitter_withdraw_back_ids,
+array_remove(array_agg(n140.next_state_id ORDER BY n140.next_state_id), NULL) as next_state_ids,
+array_remove(array_agg(n141.previous_state_id ORDER BY n141.previous_state_id), NULL) as previous_state_ids,
+array_remove(array_agg(mt142.id ORDER BY mt142.id), NULL) as motion_ids,
+array_remove(array_agg(mt143.id ORDER BY mt143.id), NULL) as motion_recommendation_ids,
 (select mw.id from motion_workflow_t mw where mw.first_state_id = m.id) as first_state_of_workflow_id
-FROM motion_state_t m;
+FROM motion_state_t m
+LEFT JOIN motion_state_t ms139 on ms139.submitter_withdraw_state_id = m.id
+LEFT JOIN nm_motion_state_next_state_ids_motion_state_t n140 on n140.previous_state_id = m.id
+LEFT JOIN nm_motion_state_next_state_ids_motion_state_t n141 on n141.next_state_id = m.id
+LEFT JOIN motion_t mt142 on mt142.state_id = m.id
+LEFT JOIN motion_t mt143 on mt143.recommendation_id = m.id
+GROUP BY m.id;
 
 
 CREATE VIEW "motion_submitter" AS SELECT * FROM motion_submitter_t m;
@@ -1872,123 +2032,164 @@ CREATE VIEW "motion_submitter" AS SELECT * FROM motion_submitter_t m;
 CREATE VIEW "motion_supporter" AS SELECT * FROM motion_supporter_t m;
 
 
-CREATE VIEW "motion_workflow" AS SELECT *,
-(select array_agg(ms.id ORDER BY ms.id) from motion_state_t ms where ms.workflow_id = m.id) as state_ids,
+CREATE VIEW "motion_workflow" AS SELECT m.*,
+array_remove(array_agg(ms144.id ORDER BY ms144.id), NULL) as state_ids,
 (select m1.id from meeting_t m1 where m1.motions_default_workflow_id = m.id) as default_workflow_meeting_id,
 (select m1.id from meeting_t m1 where m1.motions_default_amendment_workflow_id = m.id) as default_amendment_workflow_meeting_id
-FROM motion_workflow_t m;
+FROM motion_workflow_t m
+LEFT JOIN motion_state_t ms144 on ms144.workflow_id = m.id
+GROUP BY m.id;
 
 
 CREATE VIEW "motion_working_group_speaker" AS SELECT * FROM motion_working_group_speaker_t m;
 
 
-CREATE VIEW "option" AS SELECT *,
-(select array_agg(v.id ORDER BY v.id) from vote_t v where v.option_id = o.id) as vote_ids
-FROM option_t o;
+CREATE VIEW "option" AS SELECT o.*,
+array_remove(array_agg(v145.id ORDER BY v145.id), NULL) as vote_ids
+FROM option_t o
+LEFT JOIN vote_t v145 on v145.option_id = o.id
+GROUP BY o.id;
 
 
-CREATE VIEW "organization" AS SELECT *,
-(select array_agg(g.id ORDER BY g.id) from gender_t g where g.organization_id = o.id) as gender_ids,
-(select array_agg(c.id ORDER BY c.id) from committee_t c where c.organization_id = o.id) as committee_ids,
-(select array_agg(m.id ORDER BY m.id) from meeting_t m where m.is_active_in_organization_id = o.id) as active_meeting_ids,
-(select array_agg(m.id ORDER BY m.id) from meeting_t m where m.is_archived_in_organization_id = o.id) as archived_meeting_ids,
-(select array_agg(m.id ORDER BY m.id) from meeting_t m where m.template_for_organization_id = o.id) as template_meeting_ids,
-(select array_agg(ot.id ORDER BY ot.id) from organization_tag_t ot where ot.organization_id = o.id) as organization_tag_ids,
-(select array_agg(t.id ORDER BY t.id) from theme_t t where t.organization_id = o.id) as theme_ids,
-(select array_agg(m.id ORDER BY m.id) from mediafile_t m where m.owner_id_organization_id = o.id) as mediafile_ids,
-(select array_agg(m.id ORDER BY m.id) from mediafile_t m where m.published_to_meetings_in_organization_id = o.id) as published_mediafile_ids,
-(select array_agg(u.id ORDER BY u.id) from user_t u where u.organization_id = o.id) as user_ids
-FROM organization_t o;
+CREATE VIEW "organization" AS SELECT o.*,
+array_remove(array_agg(g146.id ORDER BY g146.id), NULL) as gender_ids,
+array_remove(array_agg(c147.id ORDER BY c147.id), NULL) as committee_ids,
+array_remove(array_agg(m148.id ORDER BY m148.id), NULL) as active_meeting_ids,
+array_remove(array_agg(m149.id ORDER BY m149.id), NULL) as archived_meeting_ids,
+array_remove(array_agg(m150.id ORDER BY m150.id), NULL) as template_meeting_ids,
+array_remove(array_agg(ot151.id ORDER BY ot151.id), NULL) as organization_tag_ids,
+array_remove(array_agg(t152.id ORDER BY t152.id), NULL) as theme_ids,
+array_remove(array_agg(m153.id ORDER BY m153.id), NULL) as mediafile_ids,
+array_remove(array_agg(m154.id ORDER BY m154.id), NULL) as published_mediafile_ids,
+array_remove(array_agg(u155.id ORDER BY u155.id), NULL) as user_ids
+FROM organization_t o
+LEFT JOIN gender_t g146 on g146.organization_id = o.id
+LEFT JOIN committee_t c147 on c147.organization_id = o.id
+LEFT JOIN meeting_t m148 on m148.is_active_in_organization_id = o.id
+LEFT JOIN meeting_t m149 on m149.is_archived_in_organization_id = o.id
+LEFT JOIN meeting_t m150 on m150.template_for_organization_id = o.id
+LEFT JOIN organization_tag_t ot151 on ot151.organization_id = o.id
+LEFT JOIN theme_t t152 on t152.organization_id = o.id
+LEFT JOIN mediafile_t m153 on m153.owner_id_organization_id = o.id
+LEFT JOIN mediafile_t m154 on m154.published_to_meetings_in_organization_id = o.id
+LEFT JOIN user_t u155 on u155.organization_id = o.id
+GROUP BY o.id;
 
 
-CREATE VIEW "organization_tag" AS SELECT *,
-(select array_agg(g.tagged_id ORDER BY g.tagged_id) from gm_organization_tag_tagged_ids_t g where g.organization_tag_id = o.id) as tagged_ids
+CREATE VIEW "organization_tag" AS SELECT o.*,
+array_remove(array_agg(g0.tagged_id ORDER BY g0.tagged_id), NULL) as tagged_ids
 FROM organization_tag_t o;
 
 
 CREATE VIEW "personal_note" AS SELECT * FROM personal_note_t p;
 
 
-CREATE VIEW "point_of_order_category" AS SELECT *,
-(select array_agg(s.id ORDER BY s.id) from speaker_t s where s.point_of_order_category_id = p.id) as speaker_ids
-FROM point_of_order_category_t p;
+CREATE VIEW "point_of_order_category" AS SELECT p.*,
+array_remove(array_agg(s156.id ORDER BY s156.id), NULL) as speaker_ids
+FROM point_of_order_category_t p
+LEFT JOIN speaker_t s156 on s156.point_of_order_category_id = p.id
+GROUP BY p.id;
 
 
-CREATE VIEW "poll" AS SELECT *,
-(select array_agg(o.id ORDER BY o.id) from option_t o where o.poll_id = p.id) as option_ids,
-(select array_agg(n.user_id ORDER BY n.user_id) from nm_poll_voted_ids_user_t n where n.poll_id = p.id) as voted_ids,
-(select array_agg(n.group_id ORDER BY n.group_id) from nm_group_poll_ids_poll_t n where n.poll_id = p.id) as entitled_group_ids,
-(select array_agg(pt.id ORDER BY pt.id) from projection_t pt where pt.content_object_id_poll_id = p.id) as projection_ids
-FROM poll_t p;
+CREATE VIEW "poll" AS SELECT p.*,
+array_remove(array_agg(o157.id ORDER BY o157.id), NULL) as option_ids,
+array_remove(array_agg(n158.user_id ORDER BY n158.user_id), NULL) as voted_ids,
+array_remove(array_agg(n159.group_id ORDER BY n159.group_id), NULL) as entitled_group_ids,
+array_remove(array_agg(pt160.id ORDER BY pt160.id), NULL) as projection_ids
+FROM poll_t p
+LEFT JOIN option_t o157 on o157.poll_id = p.id
+LEFT JOIN nm_poll_voted_ids_user_t n158 on n158.poll_id = p.id
+LEFT JOIN nm_group_poll_ids_poll_t n159 on n159.poll_id = p.id
+LEFT JOIN projection_t pt160 on pt160.content_object_id_poll_id = p.id
+GROUP BY p.id;
 
 
 CREATE VIEW "poll_candidate" AS SELECT * FROM poll_candidate_t p;
 
 
-CREATE VIEW "poll_candidate_list" AS SELECT *,
-(select array_agg(pc.id ORDER BY pc.id) from poll_candidate_t pc where pc.poll_candidate_list_id = p.id) as poll_candidate_ids,
+CREATE VIEW "poll_candidate_list" AS SELECT p.*,
+array_remove(array_agg(pc161.id ORDER BY pc161.id), NULL) as poll_candidate_ids,
 (select o.id from option_t o where o.content_object_id_poll_candidate_list_id = p.id) as option_id
-FROM poll_candidate_list_t p;
+FROM poll_candidate_list_t p
+LEFT JOIN poll_candidate_t pc161 on pc161.poll_candidate_list_id = p.id
+GROUP BY p.id;
 
 
 CREATE VIEW "projection" AS SELECT * FROM projection_t p;
 
 
-CREATE VIEW "projector" AS SELECT *,
-(select array_agg(pt.id ORDER BY pt.id) from projection_t pt where pt.current_projector_id = p.id) as current_projection_ids,
-(select array_agg(pt.id ORDER BY pt.id) from projection_t pt where pt.preview_projector_id = p.id) as preview_projection_ids,
-(select array_agg(pt.id ORDER BY pt.id) from projection_t pt where pt.history_projector_id = p.id) as history_projection_ids,
+CREATE VIEW "projector" AS SELECT p.*,
+array_remove(array_agg(pt162.id ORDER BY pt162.id), NULL) as current_projection_ids,
+array_remove(array_agg(pt163.id ORDER BY pt163.id), NULL) as preview_projection_ids,
+array_remove(array_agg(pt164.id ORDER BY pt164.id), NULL) as history_projection_ids,
 (select m.id from meeting_t m where m.reference_projector_id = p.id) as used_as_reference_projector_meeting_id
-FROM projector_t p;
+FROM projector_t p
+LEFT JOIN projection_t pt162 on pt162.current_projector_id = p.id
+LEFT JOIN projection_t pt163 on pt163.preview_projector_id = p.id
+LEFT JOIN projection_t pt164 on pt164.history_projector_id = p.id
+GROUP BY p.id;
 
 
-CREATE VIEW "projector_countdown" AS SELECT *,
-(select array_agg(pt.id ORDER BY pt.id) from projection_t pt where pt.content_object_id_projector_countdown_id = p.id) as projection_ids,
+CREATE VIEW "projector_countdown" AS SELECT p.*,
+array_remove(array_agg(pt165.id ORDER BY pt165.id), NULL) as projection_ids,
 (select m.id from meeting_t m where m.list_of_speakers_countdown_id = p.id) as used_as_list_of_speakers_countdown_meeting_id,
 (select m.id from meeting_t m where m.poll_countdown_id = p.id) as used_as_poll_countdown_meeting_id
-FROM projector_countdown_t p;
+FROM projector_countdown_t p
+LEFT JOIN projection_t pt165 on pt165.content_object_id_projector_countdown_id = p.id
+GROUP BY p.id;
 
 
-CREATE VIEW "projector_message" AS SELECT *,
-(select array_agg(pt.id ORDER BY pt.id) from projection_t pt where pt.content_object_id_projector_message_id = p.id) as projection_ids
-FROM projector_message_t p;
+CREATE VIEW "projector_message" AS SELECT p.*,
+array_remove(array_agg(pt166.id ORDER BY pt166.id), NULL) as projection_ids
+FROM projector_message_t p
+LEFT JOIN projection_t pt166 on pt166.content_object_id_projector_message_id = p.id
+GROUP BY p.id;
 
 
 CREATE VIEW "speaker" AS SELECT * FROM speaker_t s;
 
 
-CREATE VIEW "structure_level" AS SELECT *,
-(select array_agg(n.meeting_user_id ORDER BY n.meeting_user_id) from nm_meeting_user_structure_level_ids_structure_level_t n where n.structure_level_id = s.id) as meeting_user_ids,
-(select array_agg(sl.id ORDER BY sl.id) from structure_level_list_of_speakers_t sl where sl.structure_level_id = s.id) as structure_level_list_of_speakers_ids
-FROM structure_level_t s;
+CREATE VIEW "structure_level" AS SELECT s.*,
+array_remove(array_agg(n167.meeting_user_id ORDER BY n167.meeting_user_id), NULL) as meeting_user_ids,
+array_remove(array_agg(sl168.id ORDER BY sl168.id), NULL) as structure_level_list_of_speakers_ids
+FROM structure_level_t s
+LEFT JOIN nm_meeting_user_structure_level_ids_structure_level_t n167 on n167.structure_level_id = s.id
+LEFT JOIN structure_level_list_of_speakers_t sl168 on sl168.structure_level_id = s.id
+GROUP BY s.id;
 
 
-CREATE VIEW "structure_level_list_of_speakers" AS SELECT *,
-(select array_agg(st.id ORDER BY st.id) from speaker_t st where st.structure_level_list_of_speakers_id = s.id) as speaker_ids
-FROM structure_level_list_of_speakers_t s;
+CREATE VIEW "structure_level_list_of_speakers" AS SELECT s.*,
+array_remove(array_agg(st169.id ORDER BY st169.id), NULL) as speaker_ids
+FROM structure_level_list_of_speakers_t s
+LEFT JOIN speaker_t st169 on st169.structure_level_list_of_speakers_id = s.id
+GROUP BY s.id;
 
 
-CREATE VIEW "tag" AS SELECT *,
-(select array_agg(g.tagged_id ORDER BY g.tagged_id) from gm_tag_tagged_ids_t g where g.tag_id = t.id) as tagged_ids
+CREATE VIEW "tag" AS SELECT t.*,
+array_remove(array_agg(g0.tagged_id ORDER BY g0.tagged_id), NULL) as tagged_ids
 FROM tag_t t;
 
 
-CREATE VIEW "theme" AS SELECT *,
+CREATE VIEW "theme" AS SELECT t.*,
 (select o.id from organization_t o where o.theme_id = t.id) as theme_for_organization_id
 FROM theme_t t;
 
 
-CREATE VIEW "topic" AS SELECT *,
-(select array_agg(g.meeting_mediafile_id ORDER BY g.meeting_mediafile_id) from gm_meeting_mediafile_attachment_ids_t g where g.attachment_id_topic_id = t.id) as attachment_meeting_mediafile_ids,
+CREATE VIEW "topic" AS SELECT t.*,
+array_remove(array_agg(g170.meeting_mediafile_id ORDER BY g170.meeting_mediafile_id), NULL) as attachment_meeting_mediafile_ids,
 (select a.id from agenda_item_t a where a.content_object_id_topic_id = t.id) as agenda_item_id,
 (select l.id from list_of_speakers_t l where l.content_object_id_topic_id = t.id) as list_of_speakers_id,
-(select array_agg(p.id ORDER BY p.id) from poll_t p where p.content_object_id_topic_id = t.id) as poll_ids,
-(select array_agg(p.id ORDER BY p.id) from projection_t p where p.content_object_id_topic_id = t.id) as projection_ids
-FROM topic_t t;
+array_remove(array_agg(p171.id ORDER BY p171.id), NULL) as poll_ids,
+array_remove(array_agg(p172.id ORDER BY p172.id), NULL) as projection_ids
+FROM topic_t t
+LEFT JOIN gm_meeting_mediafile_attachment_ids_t g170 on g170.attachment_id_topic_id = t.id
+LEFT JOIN poll_t p171 on p171.content_object_id_topic_id = t.id
+LEFT JOIN projection_t p172 on p172.content_object_id_topic_id = t.id
+GROUP BY t.id;
 
 
-CREATE VIEW "user" AS SELECT *,
-(select array_agg(n.meeting_id ORDER BY n.meeting_id) from nm_meeting_present_user_ids_user_t n where n.user_id = u.id) as is_present_in_meeting_ids,
+CREATE VIEW "user" AS SELECT u.*,
+array_remove(array_agg(n173.meeting_id ORDER BY n173.meeting_id), NULL) as is_present_in_meeting_ids,
 (
   SELECT array_agg(DISTINCT committee_id ORDER BY committee_id)
   FROM (
@@ -2014,15 +2215,15 @@ CREATE VIEW "user" AS SELECT *,
   ) _
 ) AS committee_ids
 ,
-(select array_agg(n.committee_id ORDER BY n.committee_id) from nm_committee_manager_ids_user_t n where n.user_id = u.id) as committee_management_ids,
-(select array_agg(m.id ORDER BY m.id) from meeting_user_t m where m.user_id = u.id) as meeting_user_ids,
-(select array_agg(n.poll_id ORDER BY n.poll_id) from nm_poll_voted_ids_user_t n where n.user_id = u.id) as poll_voted_ids,
-(select array_agg(o.id ORDER BY o.id) from option_t o where o.content_object_id_user_id = u.id) as option_ids,
-(select array_agg(v.id ORDER BY v.id) from vote_t v where v.user_id = u.id) as vote_ids,
-(select array_agg(v.id ORDER BY v.id) from vote_t v where v.delegated_user_id = u.id) as delegated_vote_ids,
-(select array_agg(p.id ORDER BY p.id) from poll_candidate_t p where p.user_id = u.id) as poll_candidate_ids,
-(select array_agg(h.id ORDER BY h.id) from history_position_t h where h.user_id = u.id) as history_position_ids,
-(select array_agg(h.id ORDER BY h.id) from history_entry_t h where h.model_id_user_id = u.id) as history_entry_ids,
+array_remove(array_agg(n174.committee_id ORDER BY n174.committee_id), NULL) as committee_management_ids,
+array_remove(array_agg(m175.id ORDER BY m175.id), NULL) as meeting_user_ids,
+array_remove(array_agg(n176.poll_id ORDER BY n176.poll_id), NULL) as poll_voted_ids,
+array_remove(array_agg(o177.id ORDER BY o177.id), NULL) as option_ids,
+array_remove(array_agg(v178.id ORDER BY v178.id), NULL) as vote_ids,
+array_remove(array_agg(v179.id ORDER BY v179.id), NULL) as delegated_vote_ids,
+array_remove(array_agg(p180.id ORDER BY p180.id), NULL) as poll_candidate_ids,
+array_remove(array_agg(h181.id ORDER BY h181.id), NULL) as history_position_ids,
+array_remove(array_agg(h182.id ORDER BY h182.id), NULL) as history_entry_ids,
 (
   SELECT array_agg(DISTINCT mu.meeting_id ORDER BY mu.meeting_id)
   FROM meeting_user_t mu
@@ -2030,7 +2231,18 @@ CREATE VIEW "user" AS SELECT *,
   WHERE mu.user_id = u.id
 ) AS meeting_ids
 
-FROM user_t u;
+FROM user_t u
+LEFT JOIN nm_meeting_present_user_ids_user_t n173 on n173.user_id = u.id
+LEFT JOIN nm_committee_manager_ids_user_t n174 on n174.user_id = u.id
+LEFT JOIN meeting_user_t m175 on m175.user_id = u.id
+LEFT JOIN nm_poll_voted_ids_user_t n176 on n176.user_id = u.id
+LEFT JOIN option_t o177 on o177.content_object_id_user_id = u.id
+LEFT JOIN vote_t v178 on v178.user_id = u.id
+LEFT JOIN vote_t v179 on v179.delegated_user_id = u.id
+LEFT JOIN poll_candidate_t p180 on p180.user_id = u.id
+LEFT JOIN history_position_t h181 on h181.user_id = u.id
+LEFT JOIN history_entry_t h182 on h182.model_id_user_id = u.id
+GROUP BY u.id;
 
 comment on column "user".committee_ids is 'Calculated field: Returns committee_ids, where the user is manager or member in a meeting';
 comment on column "user".meeting_ids is 'Calculated. All ids from meetings calculated via meeting_user and group_ids as integers.';

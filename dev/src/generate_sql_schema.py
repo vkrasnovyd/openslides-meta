@@ -69,6 +69,8 @@ class SubstDict(TypedDict, total=False):
 class GenerateCodeBlocks:
     """Main work is done here by recursing the models and their fields and determine the method to use"""
 
+    ID = 0
+
     if not InternalHelper.MODELS:
         InternalHelper.read_models_yml(SOURCE.as_posix())
     intermediate_tables: dict[str, str] = (
@@ -169,9 +171,14 @@ class GenerateCodeBlocks:
                 table_name_code += code + "\n"
             if code := schema_zone_texts["undecided"]:
                 table_name_code += Helper.get_undecided_all(table_name, code)
-            view_name_code += Helper.get_view_head(table_name)
-            view_name_code += Helper.get_view_body_end(
-                table_name, schema_zone_texts.get("view", "")
+            view_name_code += Helper.get_view_part_1(
+                table_name, schema_zone_texts.get("view1", "")
+            )
+            view_name_code += Helper.get_view_part_2(
+                table_name, schema_zone_texts.get("view1", "")
+            )
+            view_name_code += Helper.get_view_part_3(
+                table_name, schema_zone_texts.get("view2", "")
             )
             if code := schema_zone_texts["post_view"]:
                 view_name_code += code
@@ -376,19 +383,20 @@ class GenerateCodeBlocks:
             )
         elif state == FieldSqlErrorType.SQL:
             if sql := fix(fdata.get("sql", "")):
-                text["view"] = sql + ",\n"
+                text["view1"] = sql + ",\n"
             else:
                 if foreign_table_field.field_def["type"] == "generic-relation":
                     foreign_column = f"{foreign_table_field.column}_{own_table_field.table}_{own_table_field.ref_column}"
                 else:
                     foreign_column = foreign_table_field.column
-                text["view"] = cls.get_sql_for_relation_1_1(
+                text["view1"] = cls.get_sql_for_relation_1_1(
                     table_name,
                     fname,
                     foreign_table_field.ref_column,
                     foreign_table,
                     foreign_column,
                 )
+                text["view2"] = ""
                 if own_table_field.field_def.get("required"):
                     text["create_trigger_1_1_relation_not_null"] = (
                         cls.get_trigger_check_not_null_for_1_1_relation(
@@ -455,7 +463,7 @@ class GenerateCodeBlocks:
                             f"Tried to create im_table '{nm_table_name}' twice"
                         )
             if sql := fdata.get("sql", ""):
-                text["view"] = sql + ",\n"
+                text["view1"] = sql + ",\n"
             else:
                 foreign_table_column = cast(str, foreign_table_field.column)
                 foreign_table_field_ref_id = cast(str, foreign_table_field.ref_column)
@@ -511,7 +519,7 @@ class GenerateCodeBlocks:
                         raise Exception(
                             f"Still not implemented for foreign_table type '{type_}' in False case"
                         )
-                text["view"] = cls.get_sql_for_relation_n_1(
+                text["view1"] = cls.get_sql_for_relation_n_1_part_1(
                     table_name,
                     fname,
                     own_ref_column,
@@ -519,7 +527,19 @@ class GenerateCodeBlocks:
                     foreign_table_column,
                     foreign_table_ref_column,
                     own_table_field.field_def == foreign_table_field.field_def,
+                    cls.ID,
                 )
+                text["view2"] = cls.get_sql_for_relation_n_1_part_2(
+                    table_name,
+                    fname,
+                    own_ref_column,
+                    foreign_table_name,
+                    foreign_table_column,
+                    foreign_table_ref_column,
+                    own_table_field.field_def == foreign_table_field.field_def,
+                    cls.ID,
+                )
+                cls.ID += 1
                 if own_table_field.field_def.get("required"):
                     if (
                         type_ := foreign_table_field.field_def.get("type", "")
@@ -559,7 +579,7 @@ class GenerateCodeBlocks:
         return text, error
 
     @classmethod
-    def get_sql_for_relation_n_1(
+    def get_sql_for_relation_n_1_part_1(
         cls,
         table_name: str,
         fname: str,
@@ -568,31 +588,57 @@ class GenerateCodeBlocks:
         foreign_table_column: str,
         foreign_table_ref_column: str,
         self_reference: bool = False,
+        index: int = 0,
     ) -> str:
         table_letter = Helper.get_table_letter(table_name)
-        foreign_letter = Helper.get_table_letter(foreign_table_name, [table_letter])
-        AGG_TEMPLATE = f"select array_agg({foreign_letter}.{{}} ORDER BY {foreign_letter}.{{}}) from {foreign_table_name} {foreign_letter}"
+        foreign_letter = (
+            f"{Helper.get_table_letter(foreign_table_name, [table_letter])}{index}"
+        )
+        AGG_TEMPLATE_SELF_REFERENCE = f"select array_agg({foreign_letter}.{{}} ORDER BY {foreign_letter}.{{}}) from {foreign_table_name} {foreign_letter}"
         COND_TEMPLATE = (
             f" where {foreign_letter}.{{}} = {table_letter}.{own_ref_column}"
         )
+
+        AGG_TEMPLATE_2 = f"array_remove(array_agg({foreign_letter}.{{}} ORDER BY {foreign_letter}.{{}}), NULL)"
         if not foreign_table_column or not self_reference:
-            query = AGG_TEMPLATE.format(
+            query = AGG_TEMPLATE_2.format(
                 foreign_table_ref_column, foreign_table_ref_column
             )
-            if foreign_table_column:
-                query += COND_TEMPLATE.format(foreign_table_column)
         else:
             assert foreign_table_ref_column == (
                 col := foreign_table_column
             ), f"own {col} and foreign {foreign_table_ref_column} should be equal"
-            arr1 = AGG_TEMPLATE.format(f"{col}_1", f"{col}_1") + COND_TEMPLATE.format(
-                f"{col}_2"
-            )
-            arr2 = AGG_TEMPLATE.format(f"{col}_2", f"{col}_2") + COND_TEMPLATE.format(
-                f"{col}_1"
-            )
-            query = f"select array_cat(({arr1}), ({arr2}))"
-        return f"({query}) as {fname},\n"
+            arr1 = AGG_TEMPLATE_SELF_REFERENCE.format(
+                f"{col}_1", f"{col}_1"
+            ) + COND_TEMPLATE.format(f"{col}_2")
+            arr2 = AGG_TEMPLATE_SELF_REFERENCE.format(
+                f"{col}_2", f"{col}_2"
+            ) + COND_TEMPLATE.format(f"{col}_1")
+            query = f"(select array_cat(({arr1}), ({arr2})))"
+        return f"{query} as {fname},\n"
+
+    @classmethod
+    def get_sql_for_relation_n_1_part_2(
+        cls,
+        table_name: str,
+        fname: str,
+        own_ref_column: str,
+        foreign_table_name: str,
+        foreign_table_column: str,
+        foreign_table_ref_column: str,
+        self_reference: bool = False,
+        index: int = 0,
+    ) -> str:
+        table_letter = Helper.get_table_letter(table_name)
+        foreign_letter = (
+            f"{Helper.get_table_letter(foreign_table_name, [table_letter])}{index}"
+        )
+        JOIN_TEMPLATE = f"LEFT JOIN {foreign_table_name} {foreign_letter} on {foreign_letter}.{{}} = {table_letter}.{own_ref_column}"
+
+        if foreign_table_column and not self_reference:
+            query = JOIN_TEMPLATE.format(foreign_table_column)
+            return f"{query}\n"
+        return ""
 
     @classmethod
     def get_trigger_generate_partitioned_sequence(
@@ -781,14 +827,25 @@ class GenerateCodeBlocks:
                     )
 
             # add field to view definition of table_name
-            text["view"] = cls.get_sql_for_relation_n_1(
+            text["view1"] = cls.get_sql_for_relation_n_1_part_1(
                 table_name,
                 fname,
                 own_table_field.ref_column,
                 gm_foreign_table,
                 f"{own_table_field.table}_{own_table_field.ref_column}",
                 own_table_field.intermediate_column,
+                cls.ID,
             )
+            text["view2"] = cls.get_sql_for_relation_n_1_part_2(
+                table_name,
+                fname,
+                own_table_field.ref_column,
+                gm_foreign_table,
+                f"{own_table_field.table}_{own_table_field.ref_column}",
+                own_table_field.intermediate_column,
+                cls.ID,
+            )
+            cls.ID += 1
             if comment := fdata.get("description"):
                 text["post_view"] += Helper.get_post_view_comment(
                     HelperGetNames.get_view_name(table_name), fname, comment
@@ -1167,11 +1224,13 @@ class Helper:
         return code
 
     @staticmethod
-    def get_view_head(table_name: str) -> str:
+    def get_view_part_1(table_name: str, code1: str = "") -> str:
+        if code1:
+            return f"\nCREATE VIEW {HelperGetNames.get_view_name(table_name)} AS SELECT {Helper.get_table_letter(table_name)}.*"
         return f"\nCREATE VIEW {HelperGetNames.get_view_name(table_name)} AS SELECT *"
 
     @staticmethod
-    def get_view_body_end(table_name: str, code: str) -> str:
+    def get_view_part_2(table_name: str, code: str) -> str:
         # change the code only if there is
         if code:
             # comma and "\n" for the header
@@ -1179,7 +1238,20 @@ class Helper:
             code = ",\n" + code[:-2] + "\n"
         else:
             code = " "
-        code += f"FROM {HelperGetNames.get_table_name(table_name)} {Helper.get_table_letter(table_name)};\n\n"
+        code += f"FROM {HelperGetNames.get_table_name(table_name)} {Helper.get_table_letter(table_name)}"
+        return code
+
+    @staticmethod
+    def get_view_part_3(table_name: str, code: str) -> str:
+        # change the code only if there is
+        if code:
+            # comma and "\n" for the header
+            # last attribute line without ",", but with "\n"
+            code = "\n" + code[:-1] + "\n"
+            code += f"GROUP BY {Helper.get_table_letter(table_name)}.id;\n\n"
+        else:
+            #     code = " "
+            code += ";\n\n"
         return code
 
     @staticmethod
